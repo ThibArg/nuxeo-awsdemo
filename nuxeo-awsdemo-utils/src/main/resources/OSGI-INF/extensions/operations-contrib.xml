@@ -1,0 +1,9 @@
+<component name="org.awsdemo.operations">
+
+  <extension target="org.nuxeo.ecm.core.operation.OperationServiceComponent"
+    point="operations" >
+      <operation class="org.awsdemo.CreateDemoDataOp" />
+      <operation class="org.awsdemo.UpdateDataDemoOP" />
+   </extension>
+    
+</component>
