@@ -41,6 +41,7 @@ import org.nuxeo.ecm.core.api.model.impl.ArrayProperty;
 import org.nuxeo.ecm.core.lifecycle.LifeCycleException;
 import org.nuxeo.ecm.core.model.Document;
 import org.nuxeo.ecm.core.model.Session;
+import org.nuxeo.ecm.core.uidgen.UIDSequencer;
 import org.nuxeo.ecm.core.versioning.VersioningService;
 import org.nuxeo.ecm.directory.api.DirectoryService;
 import org.nuxeo.ecm.platform.dublincore.listener.DublinCoreListener;
@@ -48,7 +49,6 @@ import org.nuxeo.ecm.platform.relations.api.DocumentRelationManager;
 import org.nuxeo.ecm.platform.relations.api.Node;
 import org.nuxeo.ecm.platform.relations.api.impl.ResourceImpl;
 import org.nuxeo.ecm.platform.tag.TagService;
-import org.nuxeo.ecm.platform.uidgen.UIDSequencer;
 import org.nuxeo.runtime.api.Framework;
 import org.nuxeo.runtime.transaction.TransactionHelper;
 
@@ -319,8 +319,8 @@ public class CreateDemoDataOp {
                 PRODUCTVERSION[RandomValues.randomInt(0, PRODUCTVERSION_MAX)]);
         doc.setPropertyValue("article:rating_str",
                 RATING[RandomValues.randomInt(0, RATING_MAX)]);
-        doc.setPropertyValue("article:subtopic", topic);
-        doc.setPropertyValue("article:topic", subtopic);
+        doc.setPropertyValue("article:subtopic", subtopic);
+        doc.setPropertyValue("article:topic", topic);
         doc.setPropertyValue("note:mime_type", "text/html");
         doc.setPropertyValue("note:note", html);
         
@@ -339,21 +339,30 @@ public class CreateDemoDataOp {
         // Tags
         tagService.tag(session, doc.getId(), topic, userModif);
         tagService.tag(session, doc.getId(), subtopic, userModif);
-        tagService.tag(session, doc.getId(), MORETAGS[RandomValues.randomInt(0, MORETAGS_MAX)], userModif);
+        String aTag = MORETAGS[RandomValues.randomInt(0, MORETAGS_MAX)];
+        tagService.tag(session, doc.getId(), aTag, userModif);
         
         // Relations
-        for(String oneurl : relations) {
-            Node object = new ResourceImpl(oneurl);
+        for(String oneUrl : relations) {
+            Node object = new ResourceImpl(oneUrl);
             relationsManager.addRelation(session, doc, object, "http://purl.org/dc/terms/IsBasedOn", false);
         }
 
-        // Now, change the lifecycle state
+        // Now, change the lifecycle state and publish
         if(RandomValues.randomInt(1, 100) > 15) {
             customSetCurrentLifecycleState(doc, "approved");
             VersioningOption vo = VersioningOption.MINOR;
             doc.putContextData(VersioningService.VERSIONING_OPTION, vo);
             doc = session.saveDocument(doc);
-            session.publishDocument(doc, SECTIONS.get(topic));
+            // We must re-add the things for a proxy...
+            DocumentModel proxy = session.publishDocument(doc, SECTIONS.get(topic));
+            for(String oneUrl : relations) {
+                Node object = new ResourceImpl(oneUrl);
+                relationsManager.addRelation(session, proxy, object, "http://purl.org/dc/terms/IsBasedOn", false);
+            }
+            tagService.tag(session, proxy.getId(), topic, userModif);
+            tagService.tag(session, proxy.getId(), subtopic, userModif);
+            tagService.tag(session, proxy.getId(), aTag, userModif);
         }
     }
 
